@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>QR Generator</title>
+    <style>
+      :root {
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #15201c;
+        background: #f3f6f1;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+      }
+
+      .app {
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: 420px minmax(0, 1fr);
+      }
+
+      .controls {
+        padding: 34px;
+        background: #fff;
+        border-right: 1px solid #dfe6df;
+      }
+
+      .eyebrow {
+        margin: 0 0 8px;
+        color: #0f766e;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      h1 {
+        margin: 0 0 26px;
+        font-size: 42px;
+        line-height: 1;
+      }
+
+      label {
+        display: grid;
+        gap: 8px;
+        margin-bottom: 16px;
+        color: #5f6f68;
+        font-size: 13px;
+        font-weight: 750;
+      }
+
+      input,
+      select {
+        width: 100%;
+        height: 44px;
+        padding: 0 12px;
+        border: 1px solid #d8e1da;
+        border-radius: 7px;
+        color: #15201c;
+        background: #fff;
+        font: inherit;
+      }
+
+      input[type="color"] {
+        padding: 4px;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 10px;
+      }
+
+      .check {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: #15201c;
+      }
+
+      .check input {
+        width: 18px;
+        height: 18px;
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 22px;
+      }
+
+      button,
+      a.download {
+        height: 44px;
+        display: grid;
+        place-items: center;
+        border: 0;
+        border-radius: 7px;
+        color: #fff;
+        background: #0f766e;
+        font: inherit;
+        font-weight: 800;
+        text-decoration: none;
+        cursor: pointer;
+      }
+
+      a.download {
+        background: #15201c;
+      }
+
+      .message {
+        min-height: 20px;
+        color: #a33a35;
+        line-height: 1.5;
+      }
+
+      .preview {
+        display: grid;
+        place-items: center;
+        padding: 36px;
+      }
+
+      .preview canvas {
+        width: min(560px, 90vw);
+        height: auto;
+        aspect-ratio: 1;
+        background: #fff;
+        border: 1px solid #d8e1da;
+        border-radius: 8px;
+        box-shadow: 0 24px 80px rgba(20, 32, 28, 0.12);
+      }
+
+      @media (max-width: 850px) {
+        .app {
+          grid-template-columns: 1fr;
+        }
+
+        .controls {
+          border-right: 0;
+          border-bottom: 1px solid #dfe6df;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <section class="controls">
+        <p class="eyebrow">Standalone QR Generator</p>
+        <h1>สร้าง QR Code</h1>
+
+        <label>
+          URL หรือข้อความ
+          <input id="value" value="https://gigatrain.co/" />
+        </label>
+
+        <div class="row">
+          <label>
+            สี QR
+            <input id="qrColor" type="color" value="#101820" />
+          </label>
+          <label>
+            สีพื้นหลัง
+            <input id="bgColor" type="color" value="#ffffff" />
+          </label>
+          <label>
+            ขนาด PNG
+            <select id="size">
+              <option value="800">800 px</option>
+              <option value="1200" selected>1200 px</option>
+              <option value="1600">1600 px</option>
+              <option value="2000">2000 px</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="check">
+          <input id="useLogo" type="checkbox" />
+          ใส่โลโก้ตรงกลาง QR
+        </label>
+
+        <label>
+          เลือกโลโก้
+          <input id="logo" type="file" accept="image/png,image/jpeg,image/webp" />
+        </label>
+
+        <div class="actions">
+          <button id="generate">สร้าง Preview</button>
+          <a id="download" class="download" download="qr-code.png">ดาวน์โหลด PNG</a>
+        </div>
+        <p id="message" class="message"></p>
+      </section>
+
+      <section class="preview">
+        <canvas id="canvas" width="1200" height="1200" aria-label="QR Preview"></canvas>
+      </section>
+    </main>
+
+    <script src="qrcode.js"></script>
+    <script>
+      const valueInput = document.querySelector("#value");
+      const qrColor = document.querySelector("#qrColor");
+      const bgColor = document.querySelector("#bgColor");
+      const sizeInput = document.querySelector("#size");
+      const useLogo = document.querySelector("#useLogo");
+      const logoInput = document.querySelector("#logo");
+      const generateBtn = document.querySelector("#generate");
+      const canvas = document.querySelector("#canvas");
+      const download = document.querySelector("#download");
+      const message = document.querySelector("#message");
+      const ctx = canvas.getContext("2d");
+
+      let logoImage = null;
+
+      function loadLogo() {
+        const file = logoInput.files && logoInput.files[0];
+        logoImage = null;
+        if (!file) {
+          generate();
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            logoImage = img;
+            useLogo.checked = true;
+            generate();
+          };
+          img.onerror = () => {
+            message.textContent = "อ่านไฟล์โลโก้ไม่ได้";
+          };
+          img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      }
+
+      function drawRoundedRect(x, y, width, height, radius, fill, stroke) {
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + width - radius, y);
+        ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+        ctx.lineTo(x + width, y + height - radius);
+        ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+        ctx.lineTo(x + radius, y + height);
+        ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+        ctx.lineTo(x, y + radius);
+        ctx.quadraticCurveTo(x, y, x + radius, y);
+        ctx.closePath();
+        ctx.fillStyle = fill;
+        ctx.fill();
+        if (stroke) {
+          ctx.strokeStyle = stroke;
+          ctx.lineWidth = Math.max(2, width / 90);
+          ctx.stroke();
+        }
+      }
+
+      function drawLogo(size) {
+        if (!useLogo.checked || !logoImage) return;
+        const maxLogo = size * 0.2;
+        const scale = Math.min(maxLogo / logoImage.width, maxLogo / logoImage.height);
+        const logoW = logoImage.width * scale;
+        const logoH = logoImage.height * scale;
+        const pad = Math.max(18, size / 80);
+        const plate = Math.max(logoW, logoH) + pad * 2;
+        const x = (size - plate) / 2;
+        const y = (size - plate) / 2;
+        drawRoundedRect(x, y, plate, plate, Math.max(22, plate / 7), bgColor.value, "#e6e6e6");
+        ctx.drawImage(logoImage, (size - logoW) / 2, (size - logoH) / 2, logoW, logoH);
+      }
+
+      function generate() {
+        message.textContent = "";
+        const text = valueInput.value.trim();
+        if (!text) {
+          message.textContent = "กรุณาใส่ URL หรือข้อความ";
+          return;
+        }
+
+        try {
+          const size = Number(sizeInput.value);
+          canvas.width = size;
+          canvas.height = size;
+
+          const qr = qrcode(0, "H");
+          qr.addData(text, "Byte");
+          qr.make();
+
+          const count = qr.getModuleCount();
+          const quietZone = 4;
+          const total = count + quietZone * 2;
+          const cell = size / total;
+
+          ctx.fillStyle = bgColor.value;
+          ctx.fillRect(0, 0, size, size);
+          ctx.fillStyle = qrColor.value;
+
+          for (let row = 0; row < count; row += 1) {
+            for (let col = 0; col < count; col += 1) {
+              if (qr.isDark(row, col)) {
+                const x = Math.round((col + quietZone) * cell);
+                const y = Math.round((row + quietZone) * cell);
+                const w = Math.ceil(cell);
+                ctx.fillRect(x, y, w, w);
+              }
+            }
+          }
+
+          drawLogo(size);
+          download.href = canvas.toDataURL("image/png");
+        } catch (error) {
+          message.textContent = "สร้าง QR ไม่สำเร็จ: " + error.message;
+        }
+      }
+
+      generateBtn.addEventListener("click", generate);
+      logoInput.addEventListener("change", loadLogo);
+      for (const input of [valueInput, qrColor, bgColor, sizeInput, useLogo]) {
+        input.addEventListener("input", generate);
+        input.addEventListener("change", generate);
+      }
+
+      generate();
+    </script>
+  </body>
+</html>
