@@ -3,12 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>QR Generator</title>
+    <title>ดลใจ | QR Generator</title>
     <style>
       :root {
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        color: #15201c;
-        background: #f3f6f1;
+        color: #1a1818;
+        background: #efefef;
       }
 
       * {
@@ -28,27 +28,27 @@
       .controls {
         padding: 34px;
         background: #fff;
-        border-right: 1px solid #dfe6df;
+        border-right: 1px solid #ddd;
       }
 
       .eyebrow {
         margin: 0 0 8px;
-        color: #0f766e;
+        color: #666;
         font-size: 13px;
         font-weight: 800;
       }
 
       h1 {
         margin: 0 0 26px;
-        font-size: 42px;
-        line-height: 1;
+        font-size: 32px;
+        line-height: 1.3;
       }
 
       label {
         display: grid;
         gap: 8px;
         margin-bottom: 16px;
-        color: #5f6f68;
+        color: #555;
         font-size: 13px;
         font-weight: 750;
       }
@@ -58,9 +58,9 @@
         width: 100%;
         height: 44px;
         padding: 0 12px;
-        border: 1px solid #d8e1da;
+        border: 1px solid #ccc;
         border-radius: 7px;
-        color: #15201c;
+        color: #1a1818;
         background: #fff;
         font: inherit;
       }
@@ -79,7 +79,7 @@
         display: flex;
         align-items: center;
         gap: 10px;
-        color: #15201c;
+        color: #1a1818;
       }
 
       .check input {
@@ -102,7 +102,7 @@
         border: 0;
         border-radius: 7px;
         color: #fff;
-        background: #0f766e;
+        background: #1a1818;
         font: inherit;
         font-weight: 800;
         text-decoration: none;
@@ -110,7 +110,7 @@
       }
 
       a.download {
-        background: #15201c;
+        background: #444;
       }
 
       .message {
@@ -126,14 +126,29 @@
       }
 
       .preview canvas {
-        width: min(560px, 90vw);
+        width: 100%;
+        max-width: 560px;
         height: auto;
         aspect-ratio: 1;
         background: #fff;
-        border: 1px solid #d8e1da;
+        border: 1px solid #ddd;
         border-radius: 8px;
-        box-shadow: 0 24px 80px rgba(20, 32, 28, 0.12);
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.08);
       }
+
+      .brand { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; color: inherit; text-decoration: none; }
+      .brand img { width: 88px; height: 88px; object-fit: contain; border-radius: 4px; }
+      .brand strong { display: block; font-size: 24px; }
+      .brand span { color: #666; font-size: 14px; }
+      input::placeholder { color: #929292; opacity: 1; }
+      input, select, .row > *, .actions > * { min-width: 0; }
+      input[type="file"] { padding: 10px; font-size: 12px; }
+      input[type="checkbox"] { accent-color: #1a1818; }
+      :focus-visible { outline: 2px solid #555; outline-offset: 3px; }
+      a.download[aria-disabled="true"] { opacity: 0.4; cursor: not-allowed; }
+      .preview { position: relative; }
+      .empty { position: absolute; color: #777; font-size: 16px; pointer-events: none; }
+      [hidden] { display: none !important; }
 
       @media (max-width: 850px) {
         .app {
@@ -142,26 +157,35 @@
 
         .controls {
           border-right: 0;
-          border-bottom: 1px solid #dfe6df;
+          border-bottom: 1px solid #ddd;
         }
+      }
+      @media (max-width: 440px) {
+        .controls { padding: 24px 20px; }
+        .preview { padding: 24px 20px; }
+        .actions { font-size: 14px; }
       }
     </style>
   </head>
   <body>
     <main class="app">
       <section class="controls">
-        <p class="eyebrow">Standalone QR Generator</p>
+        <a class="brand" href="https://donjai.me/" target="_blank" rel="noopener noreferrer">
+          <img src="donjai-logo.jpg" alt="โลโก้ดลใจ" width="88" height="88" />
+          <div><strong>ดลใจ</strong><span>donjai.me</span></div>
+        </a>
+        <p class="eyebrow">QR Generator</p>
         <h1>สร้าง QR Code</h1>
 
         <label>
           URL หรือข้อความ
-          <input id="value" value="https://gigatrain.co/" />
+          <input id="value" placeholder="ใส่ URL ที่นี่ เช่น https://donjai.me/" autocomplete="off" />
         </label>
 
         <div class="row">
           <label>
             สี QR
-            <input id="qrColor" type="color" value="#101820" />
+            <input id="qrColor" type="color" value="#1a1818" />
           </label>
           <label>
             สีพื้นหลัง
@@ -192,11 +216,12 @@
           <button id="generate">สร้าง Preview</button>
           <a id="download" class="download" download="qr-code.png">ดาวน์โหลด PNG</a>
         </div>
-        <p id="message" class="message"></p>
+        <p id="message" class="message" role="status"></p>
       </section>
 
       <section class="preview">
         <canvas id="canvas" width="1200" height="1200" aria-label="QR Preview"></canvas>
+        <p id="empty" class="empty">ตัวอย่าง QR Code</p>
       </section>
     </main>
 
@@ -213,6 +238,7 @@
       const download = document.querySelector("#download");
       const message = document.querySelector("#message");
       const ctx = canvas.getContext("2d");
+      const empty = document.querySelector("#empty");
 
       let logoImage = null;
 
@@ -276,9 +302,12 @@
 
       function generate() {
         message.textContent = "";
+        download.removeAttribute("href");
+        download.setAttribute("aria-disabled", "true");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        empty.hidden = false;
         const text = valueInput.value.trim();
         if (!text) {
-          message.textContent = "กรุณาใส่ URL หรือข้อความ";
           return;
         }
 
@@ -313,12 +342,23 @@
 
           drawLogo(size);
           download.href = canvas.toDataURL("image/png");
+          download.setAttribute("aria-disabled", "false");
+          empty.hidden = true;
         } catch (error) {
           message.textContent = "สร้าง QR ไม่สำเร็จ: " + error.message;
         }
       }
 
-      generateBtn.addEventListener("click", generate);
+      generateBtn.addEventListener("click", () => {
+        generate();
+        if (!valueInput.value.trim()) {
+          message.textContent = "กรุณาใส่ URL หรือข้อความ";
+          valueInput.focus();
+        }
+      });
+      download.addEventListener("click", (event) => {
+        if (download.getAttribute("aria-disabled") === "true") event.preventDefault();
+      });
       logoInput.addEventListener("change", loadLogo);
       for (const input of [valueInput, qrColor, bgColor, sizeInput, useLogo]) {
         input.addEventListener("input", generate);
