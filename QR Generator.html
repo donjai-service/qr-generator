@@ -149,6 +149,15 @@
       .preview { position: relative; }
       .empty { position: absolute; color: #777; font-size: 16px; pointer-events: none; }
       [hidden] { display: none !important; }
+      .styles { border: 0; padding: 18px 0; margin: 0; border-top: 1px solid #e5e5e5; min-width: 0; }
+      .styles legend { padding: 0 0 8px; font-size: 13px; font-weight: 750; }
+      .style-options { display: flex; flex-wrap: wrap; gap: 8px; }
+      .style-option { margin: 0; position: relative; cursor: pointer; }
+      .style-option input { position: absolute; opacity: 0; width: 48px; height: 48px; margin: 0; cursor: pointer; }
+      .style-option canvas { width: 48px; height: 48px; border: 1px solid #ddd; border-radius: 6px; padding: 7px; }
+      .style-option input:checked + canvas { border: 2px solid #1a1818; background: #eee; padding: 6px; }
+      .style-option input:focus-visible + canvas { outline: 2px solid #555; outline-offset: 3px; }
+      .preview { align-self: start; position: sticky; top: 0; min-height: 100vh; }
 
       @media (max-width: 850px) {
         .app {
@@ -159,6 +168,7 @@
           border-right: 0;
           border-bottom: 1px solid #ddd;
         }
+        .preview { position: relative; min-height: 0; }
       }
       @media (max-width: 440px) {
         .controls { padding: 24px 20px; }
@@ -202,6 +212,10 @@
           </label>
         </div>
 
+        <fieldset class="styles"><legend>รูปแบบลาย QR</legend><div class="style-options" id="pattern-options"></div></fieldset>
+        <fieldset class="styles"><legend>กรอบมุม</legend><div class="style-options" id="frame-options"></div></fieldset>
+        <fieldset class="styles"><legend>จุดกลางมุม</legend><div class="style-options" id="center-options"></div></fieldset>
+
         <label class="check">
           <input id="useLogo" type="checkbox" />
           ใส่โลโก้ตรงกลาง QR
@@ -241,6 +255,79 @@
       const empty = document.querySelector("#empty");
 
       let logoImage = null;
+      const styles = { pattern: "square", frame: "square", center: "square" };
+
+      function shape(context, x, y, size, style, color) {
+        context.fillStyle = color;
+        context.beginPath();
+        if (style === "dots") {
+          context.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
+        } else {
+          const radius = style === "rounded" ? size * 0.28 : style === "leaf" ? [size * 0.5, 0, size * 0.5, 0] : 0;
+          context.roundRect(x, y, size, size, radius);
+        }
+        context.fill();
+      }
+
+      function moduleShape(context, x, y, size, style, color, neighbors = {}) {
+        if (style === "horizontal" || style === "vertical" || style === "connected") {
+          const horizontal = style !== "vertical";
+          const vertical = style !== "horizontal";
+          const r = size * 0.5;
+          const radii = [
+            (horizontal && neighbors.left) || (vertical && neighbors.up) ? 0 : r,
+            (horizontal && neighbors.right) || (vertical && neighbors.up) ? 0 : r,
+            (horizontal && neighbors.right) || (vertical && neighbors.down) ? 0 : r,
+            (horizontal && neighbors.left) || (vertical && neighbors.down) ? 0 : r,
+          ];
+          context.fillStyle = color;
+          context.beginPath();
+          context.roundRect(x, y, size, size, radii);
+          context.fill();
+        } else shape(context, x, y, size, style, color);
+      }
+
+      function eye(context, x, y, cell, frame, center, foreground, background) {
+        shape(context, x, y, 7 * cell, frame, foreground);
+        shape(context, x + cell, y + cell, 5 * cell, frame, background);
+        shape(context, x + 2 * cell, y + 2 * cell, 3 * cell, center, foreground);
+      }
+
+      const choices = {
+        pattern: [["square", "สี่เหลี่ยม"], ["rounded", "มุมมน"], ["dots", "จุดวงกลม"], ["connected", "โค้งเชื่อมกัน"], ["horizontal", "เส้นแนวนอน"], ["vertical", "เส้นแนวตั้ง"]],
+        frame: [["square", "สี่เหลี่ยม"], ["rounded", "มุมมน"], ["dots", "วงกลม"], ["leaf", "ใบไม้"]],
+        center: [["square", "สี่เหลี่ยม"], ["rounded", "มุมมน"], ["dots", "วงกลม"], ["leaf", "ใบไม้"]],
+      };
+      const sample = ["110101", "011110", "110011", "101101", "111010", "010111"];
+      for (const [group, options] of Object.entries(choices)) {
+        for (const [value, label] of options) {
+          const item = document.createElement("label");
+          item.className = "style-option";
+          item.title = label;
+          const radio = document.createElement("input");
+          radio.type = "radio";
+          radio.name = group;
+          radio.value = value;
+          radio.checked = value === styles[group];
+          radio.setAttribute("aria-label", label);
+          const icon = document.createElement("canvas");
+          icon.width = icon.height = 84;
+          icon.setAttribute("aria-hidden", "true");
+          const c = icon.getContext("2d");
+          if (group === "pattern") {
+            const dark = (r, col) => sample[r]?.[col] === "1";
+            sample.forEach((line, r) => [...line].forEach((bit, col) => {
+              if (bit === "1") moduleShape(c, col * 14, r * 14, 14, value, "#1a1818", {left: dark(r,col-1), right: dark(r,col+1), up: dark(r-1,col), down: dark(r+1,col)});
+            }));
+          } else if (group === "frame") {
+            shape(c, 0, 0, 84, value, "#1a1818");
+            shape(c, 16, 16, 52, value, "#fff");
+          } else shape(c, 7, 7, 70, value, "#1a1818");
+          radio.addEventListener("change", () => { styles[group] = value; generate(); });
+          item.append(radio, icon);
+          document.querySelector(`#${group}-options`).append(item);
+        }
+      }
 
       function loadLogo() {
         const file = logoInput.files && logoInput.files[0];
@@ -323,7 +410,8 @@
           const count = qr.getModuleCount();
           const quietZone = 4;
           const total = count + quietZone * 2;
-          const cell = size / total;
+          const cell = Math.floor(size / total);
+          const offset = Math.floor((size - cell * count) / 2);
 
           ctx.fillStyle = bgColor.value;
           ctx.fillRect(0, 0, size, size);
@@ -331,13 +419,17 @@
 
           for (let row = 0; row < count; row += 1) {
             for (let col = 0; col < count; col += 1) {
+              // Finder eyes are rendered separately, leaving their separators intact.
+              if ((row < 7 && col < 7) || (row < 7 && col >= count - 7) || (row >= count - 7 && col < 7)) continue;
               if (qr.isDark(row, col)) {
-                const x = Math.round((col + quietZone) * cell);
-                const y = Math.round((row + quietZone) * cell);
-                const w = Math.ceil(cell);
-                ctx.fillRect(x, y, w, w);
+                const dark = (r, c) => r >= 0 && c >= 0 && r < count && c < count && qr.isDark(r, c);
+                moduleShape(ctx, offset + col * cell, offset + row * cell, cell, styles.pattern, qrColor.value,
+                  {left: dark(row,col-1), right: dark(row,col+1), up: dark(row-1,col), down: dark(row+1,col)});
               }
             }
+          }
+          for (const [col, row] of [[0, 0], [count - 7, 0], [0, count - 7]]) {
+            eye(ctx, offset + col * cell, offset + row * cell, cell, styles.frame, styles.center, qrColor.value, bgColor.value);
           }
 
           drawLogo(size);
